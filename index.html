@@ -1,0 +1,69 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Peta Desa Alsintan</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<style>
+  html, body, #map { height: 100%; margin: 0; padding: 0; }
+  .leaflet-popup-content { font-size: 13px; text-transform: lowercase; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+// Inisialisasi peta
+var map = L.map('map').setView([-0.1, 109.2], 11);
+
+// Base layer OSM
+var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap'
+}).addTo(map);
+
+// Base layer Satelit
+var satelit = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+    maxZoom: 20,
+    attribution: '© Google'
+});
+
+var baseMaps = { "OSM": osm, "Satelit": satelit };
+L.control.layers(baseMaps).addTo(map);
+
+// Ambil data dari Google Sheet
+fetch("https://docs.google.com/spreadsheets/d/1_GOmIHvHcbv8nw3vd3rGx75Z7OAUJChKzdV6CVE1Hmg/gviz/tq?tqx=out:csv&sheet=data_kobo")
+  .then(res => res.text())
+  .then(csv => {
+    const rows = csv.split("\n").map(r => r.split(","));
+    const header = rows[0].map(h => h.trim().toLowerCase());
+    const data = rows.slice(1);
+
+    data.forEach(r => {
+        const obj = {};
+        header.forEach((h, i) => obj[h] = r[i]);
+        const lat = parseFloat(obj["latitude"]);
+        const lon = parseFloat(obj["longitude"]);
+        if (!isNaN(lat) && !isNaN(lon)) {
+            const tersedia = Math.round(parseFloat(obj["jumlah_tersedia"]) || 0);
+            const dibutuhkan = Math.round(parseFloat(obj["jumlah_dibutuhkan"]) || 0);
+            const popup = `
+                <b>poktan/gapoktan:</b> ${obj["poktan"] || obj["gapoktan"] || "-"}<br>
+                <b>desa:</b> ${obj["desa"]}<br>
+                <b>tersedia:</b> ${tersedia}<br>
+                <b>dibutuhkan:</b> ${dibutuhkan}
+            `;
+            L.circleMarker([lat, lon], {
+                radius: 5,
+                color: "#555",
+                fillColor: "#CFCFCF",
+                fillOpacity: 0.9
+            }).bindPopup(popup).addTo(map);
+        }
+    });
+  });
+</script>
+</body>
+</html>
