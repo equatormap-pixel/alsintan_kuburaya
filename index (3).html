@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebGIS Alsintan</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+    }
+    #map {
+      width: 100vw;
+      height: 100vh;
+    }
+    .leaflet-popup-content {
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 5px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 3px 6px;
+      text-align: left;
+    }
+    th {
+      background-color: #f4f4f4;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script>
+    const sheetUrl =
+      "https://opensheet.elk.sh/10u4_X1b5uzLxs5utS6YXYmTFB0OtF5rDfGRvBxnLkMQ/data_kobo";
+
+    const map = L.map("map").setView([-0.0756, 109.1998], 10);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap contributors",
+    }).addTo(map);
+
+    fetch(sheetUrl)
+      .then((res) => res.json())
+      .then((data) => {
+        data.forEach((row) => {
+          if (row["lokasi_otomatis"]) {
+            const coords = row["lokasi_otomatis"]
+              .split(" ")
+              .map((x) => parseFloat(x.trim()));
+
+            if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+              const [lat, lon] = coords;
+
+              let alatList = [];
+              try {
+                const raw = row["group_alsintan"];
+                if (raw) {
+                  const groups = raw
+                    .split("},")
+                    .map((x) => x.replace(/[{}]/g, "").trim())
+                    .filter((x) => x);
+
+                  groups.forEach((item) => {
+                    const alatObj = {};
+                    item.split(",").forEach((pair) => {
+                      const [key, val] = pair.split("=");
+                      if (key && val) alatObj[key.trim()] = val.trim();
+                    });
+                    alatList.push(alatObj);
+                  });
+                }
+              } catch (e) {
+                console.error("Gagal parsing alat:", e);
+              }
+
+              let alatTable = "";
+              if (alatList.length > 0) {
+                alatTable = `
+                  <table>
+                    <tr><th>Nama Alat</th><th>Tersedia</th><th>Dibutuhkan</th></tr>
+                    ${alatList
+                      .map(
+                        (a) => `
+                        <tr>
+                          <td>${a.nama_alat || "-"}</td>
+                          <td>${a.jumlah_tersedia || "-"}</td>
+                          <td>${a.jumlah_dibutuhkan || "-"}</td>
+                        </tr>`
+                      )
+                      .join("")}
+                  </table>`;
+              } else {
+                alatTable = `<i>Tidak ada data alat</i>`;
+              }
+
+              const popup = `
+                <b>${row["nama_poktan"] || "Nama Poktan Tidak Ada"}</b><br>
+                Gapoktan: ${row["nama_gapoktan"] || "-"}<br>
+                Ketua: ${row["nama_ketuaKelompok"] || "-"}<br>
+                Komoditi: ${row["komoditi_unggul"] || "-"}<br>
+                Luas Lahan: ${row["luas_lahan"] || "-"} ha<br>
+                Anggota: ${row["jumlah_anggota"] || "-"} orang<br>
+                <b>Kebutuhan Alsintan:</b><br>
+                ${alatTable}
+              `;
+
+              L.marker([lat, lon]).addTo(map).bindPopup(popup);
+            }
+          }
+        });
+      })
+      .catch((err) => console.error("Gagal ambil data:", err));
+  </script>
+</body>
+</html>
