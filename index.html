@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebGIS Alsintan - Kubu Raya</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="data/desa_alsinta_FeaturesToJSON_0.js"></script>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; }
+    #map { width: 100vw; height: 100vh; }
+    .legend { background: white; padding: 10px; border-radius: 8px; line-height: 1.4; font-size: 13px; }
+    .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.8; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script>
+    const sheetUrl = "https://opensheet.elk.sh/10u4_X1b5uzLxs5utS6YXYmTFB0OtF5rDfGRvBxnLkMQ/data_kobo";
+
+    const map = L.map("map").setView([-0.0756, 109.1998], 10);
+
+    const baseOSM = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap contributors"
+    }).addTo(map);
+
+    const baseSatellite = L.tileLayer("https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", {
+      subdomains: ['mt0','mt1','mt2','mt3'],
+      maxZoom: 20,
+      attribution: "© Google Satellite"
+    });
+
+    const batasLayer = L.geoJSON(json_desa_alsinta_FeaturesToJSON_0, {
+      style: { color: "#FF6600", weight: 1.5, fillColor: "#FFE5B4", fillOpacity: 0.3 },
+      onEachFeature: function (feature, layer) {
+        const p = feature.properties;
+        layer.bindPopup(`<b>Desa: ${p.Desa || "-"} </b><br>
+          Kecamatan: ${p.Kecamatan || "-"}<br>
+          Komoditas: ${p.Komoditas_Unggulan || "-"}<br>
+          Luas Sawah: ${p.Luas_Lahan_Sawah || "-"} ha`);
+      }
+    }).addTo(map);
+
+    fetch(sheetUrl)
+      .then(res => res.json())
+      .then(data => {
+        data.forEach(row => {
+          if (row.lokasi_otomatis && row.lokasi_otomatis.trim() !== "") {
+            const [lat, lon] = row.lokasi_otomatis.split(" ").map(Number);
+            if (!isNaN(lat) && !isNaN(lon)) {
+              let popupHTML = `
+                <b>${row.nama_poktan || "Tanpa Nama"}</b><br>
+                Gapoktan: ${row.nama_gapoktan || "-"}<br>
+                Ketua: ${row.nama_ketuaKelompok || "-"}<br>
+                Komoditi: ${row.komoditi_unggul || "-"}<br>
+                Luas: ${row.luas_lahan || "-"} ha<br>
+                Anggota: ${row.jumlah_anggota || "-"}<br><br>
+                <b>Kebutuhan Alsintan:</b><br>
+              `;
+
+              if (row.group_alsintan && row.group_alsintan.includes("{")) {
+                const alatGroups = row.group_alsintan.split("},").map(x => x.replace(/[{}]/g, "").trim());
+                popupHTML += "<table border='1' cellpadding='3'><tr><th>Alat</th><th>Tersedia</th><th>Dibutuhkan</th></tr>";
+                alatGroups.forEach(a => {
+                  const alatObj = {};
+                  a.split(",").forEach(pair => {
+                    const [k, v] = pair.split("=");
+                    if (k && v) alatObj[k.trim()] = v.trim();
+                  });
+                  popupHTML += `<tr><td>${alatObj.nama_alat || "-"}</td><td>${alatObj.jumlah_tersedia || "-"}</td><td>${alatObj.jumlah_dibutuhkan || "-"}</td></tr>`;
+                });
+                popupHTML += "</table>";
+              } else {
+                popupHTML += "<i>Tidak ada data alsintan</i>";
+              }
+
+              L.marker([lat, lon]).addTo(map).bindPopup(popupHTML);
+            }
+          }
+        });
+      })
+      .catch(err => console.error("Gagal ambil data:", err));
+
+    const baseMaps = {
+      "OpenStreetMap": baseOSM,
+      "Satelit": baseSatellite
+    };
+
+    const overlayMaps = {
+      "Batas Desa": batasLayer
+    };
+
+    L.control.layers(baseMaps, overlayMaps).addTo(map);
+
+    const legend = L.control({ position: "bottomright" });
+    legend.onAdd = function () {
+      const div = L.DomUtil.create("div", "legend");
+      div.innerHTML = `
+        <b>Legenda</b><br>
+        <i style="background:#FFE5B4;border:1px solid #FF6600;"></i> Batas Desa<br>
+        <i style="background:#3388ff;border:1px solid #3388ff;"></i> Lokasi Poktan
+      `;
+      return div;
+    };
+    legend.addTo(map);
+  </script>
+</body>
+</html>
